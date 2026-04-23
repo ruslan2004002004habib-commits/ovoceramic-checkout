@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-page-v8-dedupe-fix";
+  var BUILD_VERSION = "2026-04-28-page-v9-tcart-look";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -975,19 +975,22 @@
   }
 
   function renderCitySelectOptions() {
-    if (!refs.cityDatalist) return;
+    if (!refs.citySelect) return;
     var cities = buildCityOptions();
-    refs.cityDatalist.innerHTML = "";
+    refs.citySelect.innerHTML = "<option value='' disabled>Выберите город</option>";
     cities.forEach(function (city) {
       var option = document.createElement("option");
       option.value = city;
-      refs.cityDatalist.appendChild(option);
+      option.textContent = city;
+      refs.citySelect.appendChild(option);
     });
 
     var preferredCity = state.selectedCity || getSelectedCityFromNativeRadios() || CONFIG.defaultCity || "";
-    if (preferredCity && refs.customerAddress && !refs.customerAddress.value) {
-      refs.customerAddress.value = preferredCity;
+    if (preferredCity && cities.indexOf(preferredCity) >= 0) {
+      refs.citySelect.value = preferredCity;
       state.selectedCity = preferredCity;
+    } else {
+      refs.citySelect.value = "";
     }
   }
 
@@ -1138,10 +1141,15 @@
     var style = document.createElement("style");
     style.id = "nc-delivery-page-style";
     style.textContent =
-      ".nc-delivery-page{--nc-orange:#FF6B35;--nc-orange-dark:#E85A2A;--nc-ink:#1A1A1A;--nc-muted:#8D8D8D;--nc-line:#EDEDED;--nc-bg:#fff;--nc-bg-soft:#F8F8F8;margin:0 0 20px;padding:32px 36px;border:1px solid var(--nc-line);border-radius:16px;background:var(--nc-bg);font-family:inherit;color:var(--nc-ink);box-shadow:0 4px 28px rgba(0,0,0,.05);letter-spacing:0}" +
-      ".nc-delivery-page__head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:0 0 26px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--nc-line)}" +
-      ".nc-delivery-page__head-title{font-size:26px;font-weight:700;letter-spacing:.02em;margin:0;text-transform:uppercase;line-height:1.1}" +
-      ".nc-delivery-page__head-sub{font-size:13px;color:var(--nc-muted);margin-top:8px;line-height:1.5;max-width:560px}" +
+      ".nc-delivery-page{--nc-orange:#FF6B35;--nc-orange-dark:#E85A2A;--nc-ink:#1A1A1A;--nc-muted:#8D8D8D;--nc-line:#EDEDED;--nc-bg:#fff;--nc-bg-soft:#F8F8F8;margin:0 0 20px;padding:28px 36px 36px;border:1px solid var(--nc-line);border-radius:16px;background:var(--nc-bg);font-family:inherit;color:var(--nc-ink);box-shadow:0 4px 28px rgba(0,0,0,.05);letter-spacing:0}" +
+      ".nc-delivery-page__head{position:relative;display:flex;align-items:center;justify-content:center;gap:20px;margin:0 0 22px;padding-bottom:18px;border-bottom:1px solid var(--nc-line);min-height:44px}" +
+      ".nc-delivery-page__head-title{font-size:16px;font-weight:700;letter-spacing:.06em;margin:0;text-transform:uppercase;line-height:1.1;text-align:center}" +
+      ".nc-delivery-page__head-btn{position:absolute;top:50%;transform:translateY(calc(-50% - 9px));width:36px;height:36px;border-radius:50%;border:0;background:transparent;color:var(--nc-ink);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;text-decoration:none;font-family:inherit}" +
+      ".nc-delivery-page__head-btn:hover{background:var(--nc-bg-soft)}" +
+      ".nc-delivery-page__head-btn--back{left:0}" +
+      ".nc-delivery-page__head-btn--close{right:0}" +
+      ".nc-delivery-page__head-btn svg{width:18px;height:18px}" +
+      ".nc-delivery-page__head-sub{display:none}" +
       ".nc-delivery-page__layout{display:grid;grid-template-columns:minmax(290px,.95fr) minmax(380px,1.1fr);gap:40px;align-items:start}" +
       ".nc-delivery-page__left{display:flex;flex-direction:column;gap:22px}" +
       ".nc-delivery-page__right{padding-left:32px;border-left:1px solid var(--nc-line);display:flex;flex-direction:column;gap:16px}" +
@@ -1159,8 +1167,10 @@
       ".nc-delivery-page__carrier{border:1.5px solid var(--nc-line);background:var(--nc-bg);padding:18px 12px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:.03em;cursor:pointer;transition:all .2s;color:var(--nc-ink);text-align:center;line-height:1.35;min-height:64px;display:flex;align-items:center;justify-content:center}" +
       ".nc-delivery-page__carrier:hover{border-color:var(--nc-ink)}" +
       ".nc-delivery-page__carrier[aria-pressed='true']{border-color:var(--nc-ink);background:var(--nc-ink);color:#fff}" +
-      ".nc-delivery-page__field select,.nc-delivery-page__field input{width:100%;height:42px;padding:0 12px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:13px;color:var(--nc-ink);font-family:inherit;transition:.15s;outline:none}" +
-      ".nc-delivery-page__field select#nc-delivery-city{max-width:360px}" +
+      ".nc-delivery-page__field select,.nc-delivery-page__field input{width:100%;height:48px;padding:0 16px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:14px;color:var(--nc-ink);font-family:inherit;transition:border-color .15s;outline:none}" +
+      ".nc-delivery-page__field input::placeholder{color:#B0B0B0}" +
+      ".nc-delivery-page__field select[data-role='city-select']{max-width:100%;color:var(--nc-ink)}" +
+      ".nc-delivery-page__field select[data-role='city-select']:invalid,.nc-delivery-page__field select[data-role='city-select'] option[value='']{color:#B0B0B0}" +
       ".nc-delivery-page__stats{display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:8px}" +
       ".nc-delivery-page__stat{padding:10px 10px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg-soft)}" +
       ".nc-delivery-page__stat-label{display:block;font-size:10px;color:var(--nc-muted);text-transform:uppercase;letter-spacing:.08em}" +
@@ -1177,12 +1187,19 @@
       ".nc-delivery-page__customer input{width:100%;height:48px;padding:0 16px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:14px;color:var(--nc-ink);font-family:inherit;transition:border-color .15s;outline:none}" +
       ".nc-delivery-page__customer input:focus{border-color:var(--nc-ink)}" +
       ".nc-delivery-page__customer input::placeholder{color:#B0B0B0}" +
-      ".nc-delivery-page__city-input{width:100%;height:48px;padding:0 16px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:14px;color:var(--nc-ink);font-family:inherit;transition:border-color .15s;outline:none}" +
-      ".nc-delivery-page__city-input:focus{border-color:var(--nc-ink)}" +
-      ".nc-delivery-page__city-input::placeholder{color:#B0B0B0}" +
-      ".nc-delivery-page__pay{margin-top:14px}" +
-      ".nc-delivery-page__pay button{width:100%;height:46px;padding:0 20px;border:0;border-radius:10px;background:var(--nc-ink);color:#fff;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:.15s;font-family:inherit}" +
-      ".nc-delivery-page__pay button:hover{background:#000}" +
+      ".nc-delivery-page__phone-wrap{position:relative}" +
+      ".nc-delivery-page__phone-wrap input{padding-left:58px !important}" +
+      ".nc-delivery-page__phone-wrap::before{content:'';position:absolute;top:50%;left:14px;transform:translateY(-50%);width:28px;height:20px;border-radius:3px;background:linear-gradient(to bottom,#fff 0,#fff 33%,#0039A6 33%,#0039A6 66%,#D52B1E 66%,#D52B1E 100%);box-shadow:0 0 0 1px var(--nc-line)}" +
+      ".nc-delivery-page__phone-wrap::after{content:'';position:absolute;top:50%;right:auto;left:44px;transform:translateY(-50%);width:1px;height:20px;background:var(--nc-line)}" +
+      ".nc-delivery-page__consent{display:flex;align-items:flex-start;gap:10px;margin-top:6px;font-size:12px;color:var(--nc-muted);line-height:1.45;cursor:pointer}" +
+      ".nc-delivery-page__consent input{flex:0 0 16px;width:16px;height:16px;margin-top:2px;accent-color:var(--nc-orange);cursor:pointer}" +
+      ".nc-delivery-page__consent a{color:var(--nc-ink);text-decoration:underline}" +
+      ".nc-delivery-page__pay{margin-top:18px;display:flex;flex-direction:column;gap:8px}" +
+      ".nc-delivery-page__pay button{width:100%;height:52px;padding:0 20px;border:0;border-radius:12px;background:var(--nc-orange);color:#fff;font-size:14px;font-weight:700;letter-spacing:.04em;cursor:pointer;transition:.15s;font-family:inherit;box-shadow:0 4px 14px rgba(255,107,53,.25)}" +
+      ".nc-delivery-page__pay button:hover{background:var(--nc-orange-dark);box-shadow:0 6px 18px rgba(255,107,53,.35)}" +
+      ".nc-delivery-page__pay button:disabled{background:#cccccc;box-shadow:none;cursor:not-allowed;opacity:.8}" +
+      ".nc-delivery-page__pay-back{background:transparent !important;border:1px solid var(--nc-line) !important;color:var(--nc-ink) !important;height:42px !important;font-size:12px !important;box-shadow:none !important;font-weight:600 !important;letter-spacing:.06em;text-transform:uppercase}" +
+      ".nc-delivery-page__pay-back:hover{border-color:var(--nc-ink) !important;background:transparent !important;box-shadow:none !important}" +
       ".nc-delivery-page__products-title{margin:0 0 6px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--nc-ink)}" +
       ".nc-delivery-page__products-wrap{display:flex;flex-direction:column}" +
       ".nc-delivery-page__product-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--nc-line)}" +
@@ -1232,7 +1249,7 @@
       ".nc-skeleton::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);animation:nc-shimmer 1.3s infinite}" +
       "@keyframes nc-shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}" +
       "@media (max-width: 980px){.nc-delivery-page{padding:18px}.nc-delivery-page__layout{grid-template-columns:1fr;gap:18px}.nc-delivery-page__right{padding-left:0;border-left:0;border-top:1px solid var(--nc-line);padding-top:18px;order:-1;position:sticky;top:0;background:var(--nc-bg);z-index:5}.nc-delivery-page__product-name{max-width:200px}.nc-delivery-page__tip::after{width:200px}.nc-delivery-page__field select#nc-delivery-city{max-width:100%}.nc-delivery-page__stepper{gap:6px}.nc-delivery-page__step-item{min-width:130px;gap:6px}.nc-delivery-page__step-title{font-size:10px}}" +
-      "@media (max-width: 640px){.nc-delivery-page{padding:14px;border-radius:14px}.nc-delivery-page__head-title{font-size:18px}.nc-delivery-page__carriers{grid-template-columns:1fr 1fr 1fr;gap:6px}.nc-delivery-page__carrier{min-height:48px;font-size:11px;padding:10px 6px}.nc-delivery-page__product-name{font-size:13px}.nc-delivery-page__product-price{font-size:14px}.nc-delivery-page__row--final strong{font-size:20px}.nc-delivery-page__tip::after{width:170px;left:0;transform:none}.nc-delivery-page__tip::before{left:8px;transform:rotate(45deg)}.nc-delivery-page__customer{grid-template-columns:1fr}.nc-delivery-page__step-title{display:none}.nc-delivery-page__step-bar{min-width:24px}.nc-delivery-page__btn-next{padding:0 18px;font-size:12px}}";
+      "@media (max-width: 640px){.nc-delivery-page{padding:14px;border-radius:14px}.nc-delivery-page__head-title{font-size:14px}.nc-delivery-page__head-btn{width:32px;height:32px}.nc-delivery-page__carriers{grid-template-columns:1fr 1fr 1fr;gap:6px}.nc-delivery-page__carrier{min-height:48px;font-size:11px;padding:10px 6px}.nc-delivery-page__product-name{font-size:13px}.nc-delivery-page__product-price{font-size:14px}.nc-delivery-page__row--final strong{font-size:20px}.nc-delivery-page__tip::after{width:170px;left:0;transform:none}.nc-delivery-page__tip::before{left:8px;transform:rotate(45deg)}.nc-delivery-page__customer{grid-template-columns:1fr}.nc-delivery-page__step-title{display:none}.nc-delivery-page__step-bar{min-width:24px}.nc-delivery-page__btn-next{padding:0 18px;font-size:12px}.nc-delivery-page__pay button{height:48px;font-size:13px}}";
     document.head.appendChild(style);
   }
 
@@ -1281,54 +1298,52 @@
     var step1Html =
       "<div class='nc-step-panel nc-step-panel--active' data-role='step-1'>" +
       carrierBlock +
-      "<datalist id='nc-city-datalist' data-role='city-datalist'></datalist>" +
       "<div class='nc-delivery-page__field'>" +
       "<div class='nc-delivery-page__field-head'>" +
       "<span class='nc-delivery-page__field-label'>Город доставки</span>" +
-      "<span class='nc-delivery-page__tip' tabindex='0' data-tip='Начните вводить город — появятся подсказки из тарифной таблицы. Стоимость доставки посчитается автоматически.'>?</span>" +
+      "<span class='nc-delivery-page__tip' tabindex='0' data-tip='Выберите город из списка — стоимость доставки посчитается автоматически.'>?</span>" +
       "</div>" +
-      "<input type='text' data-role='customer-address' placeholder='Начните вводить город' autocomplete='address-level2' list='nc-city-datalist' class='nc-delivery-page__city-input'>" +
+      "<select data-role='city-select' autocomplete='address-level2'><option value='' disabled selected>Выберите город</option></select>" +
       "<div class='nc-delivery-page__hint'>Если вашего города нет в списке — <a href='https://wa.me/79189860121' target='_blank' rel='noopener'>обратитесь к менеджеру</a>, мы вам поможем.</div>" +
       "</div>" +
       "<div class='nc-delivery-page__status' data-role='status'></div>" +
       "<div class='nc-delivery-page__customer' style='margin-top:6px'>" +
-      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-name' placeholder='Ваше имя' autocomplete='name'></div>" +
-      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='tel' data-role='customer-phone' placeholder='+7 (___) ___-__-__' autocomplete='tel' inputmode='tel'></div>" +
-      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-street' placeholder='Улица' autocomplete='address-line1'></div>" +
-      "<div class='nc-delivery-page__field'><input type='text' data-role='customer-house' placeholder='Дом' autocomplete='address-line2' inputmode='numeric'></div>" +
-      "<div class='nc-delivery-page__field'><input type='text' data-role='customer-flat' placeholder='Квартира' autocomplete='off' inputmode='numeric'></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-name' placeholder='Как вас зовут' autocomplete='name'></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><div class='nc-delivery-page__phone-wrap'><input type='tel' data-role='customer-phone' placeholder='+7 (000) 000-00-00' autocomplete='tel' inputmode='tel'></div></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-address' placeholder='Введите адрес доставки' autocomplete='street-address'></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-street' placeholder='Введите улицу' autocomplete='address-line1'></div>" +
+      "<div class='nc-delivery-page__field'><input type='text' data-role='customer-house' placeholder='Введите номер дома' autocomplete='address-line2' inputmode='numeric'></div>" +
+      "<div class='nc-delivery-page__field'><input type='text' data-role='customer-flat' placeholder='Введите номер квартиры' autocomplete='off' inputmode='numeric'></div>" +
       "</div>" +
+      "<label class='nc-delivery-page__consent'>" +
+      "<input type='checkbox' data-role='consent' checked>" +
+      "<span>Я согласен с <a href='/privacy' target='_blank' rel='noopener'>политикой конфиденциальности</a> и обработкой персональных данных</span>" +
+      "</label>" +
       "<div class='nc-delivery-page__summary' data-role='products-summary'></div>" +
       "<div class='nc-delivery-page__warning' data-role='warning'></div>" +
       "<div class='nc-delivery-page__details' data-role='details'></div>" +
       "<div class='nc-delivery-page__error' data-role='step1-error'></div>" +
-      "<div class='nc-delivery-page__nav-row'>" +
-      "<span></span>" +
-      "<button type='button' class='nc-delivery-page__btn-next' data-role='go-to-step-2'>Далее &rarr;</button>" +
-      "</div>" +
       "</div>";
 
     var step2Html =
       "<div class='nc-step-panel' data-role='step-2'>" +
       "<div class='nc-delivery-page__review' data-role='review'></div>" +
       "<div class='nc-delivery-page__error' data-role='step2-error'></div>" +
-      "<div class='nc-delivery-page__pay'><button type='button' data-role='pay-now'>Оплатить 0 ₽</button></div>" +
       "<div class='nc-delivery-page__secure'>" +
       "<svg width='14' height='14' viewBox='0 0 24 24' fill='none'><path d='M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z' stroke='%238a8a8a' stroke-width='1.6'/></svg>" +
       "<span>Защищённый платёж через Т-Банк · SSL</span>" +
-      "</div>" +
-      "<div class='nc-delivery-page__nav-row'>" +
-      "<button type='button' class='nc-delivery-page__btn-back' data-role='go-to-step-1'>&larr; Назад</button>" +
-      "<span></span>" +
       "</div>" +
       "</div>";
 
     refs.root.innerHTML =
       "<div class='nc-delivery-page__head'>" +
-      "<div>" +
-      "<div class='nc-delivery-page__head-title'>Оформление заказа</div>" +
-      "<div class='nc-delivery-page__head-sub'>Выберите доставку и заполните данные — на следующем шаге подтвердите заказ и оплатите через Т-Банк.</div>" +
-      "</div>" +
+      "<a href='/katalog' class='nc-delivery-page__head-btn nc-delivery-page__head-btn--back' aria-label='Вернуться в каталог' data-role='head-back'>" +
+      "<svg viewBox='0 0 24 24' fill='none'><path d='M15 18l-6-6 6-6' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>" +
+      "</a>" +
+      "<div class='nc-delivery-page__head-title'>Ваш заказ</div>" +
+      "<a href='/' class='nc-delivery-page__head-btn nc-delivery-page__head-btn--close' aria-label='На главную' data-role='head-close'>" +
+      "<svg viewBox='0 0 24 24' fill='none'><path d='M6 6l12 12M6 18L18 6' stroke='currentColor' stroke-width='1.8' stroke-linecap='round'/></svg>" +
+      "</a>" +
       "</div>" +
       stepperHtml +
       "<div class='nc-delivery-page__layout'>" +
@@ -1337,23 +1352,22 @@
       step2Html +
       "</div>" +
       "<div class='nc-delivery-page__right'>" +
-      "<div class='nc-delivery-page__field-head' style='margin-bottom:0'>" +
-      "<span class='nc-delivery-page__field-label'>Ваш заказ</span>" +
-      "<span class='nc-delivery-page__tip' tabindex='0' data-tip='Состав заказа переносится автоматически из корзины каталога. Изменить количество можно в стандартной корзине Tilda.'>?</span>" +
-      "</div>" +
       "<div class='nc-delivery-page__products' data-role='products-list'></div>" +
-      "<div class='nc-delivery-page__hint'>" + productsHintHtml + "</div>" +
       "<div class='nc-delivery-page__totals'>" +
       "<div class='nc-delivery-page__row'><span>Сумма товаров</span><strong data-role='cart-total'>0 ₽</strong></div>" +
       "<div class='nc-delivery-page__row'><span>Доставка</span><strong data-role='delivery-total'>0 ₽</strong></div>" +
-      "<div class='nc-delivery-page__row nc-delivery-page__row--final'><span>Итого к оплате</span><strong data-role='order-total'>0 ₽</strong></div>" +
+      "<div class='nc-delivery-page__row nc-delivery-page__row--final'><span>Итоговая сумма</span><strong data-role='order-total'>0 ₽</strong></div>" +
+      "</div>" +
+      "<div class='nc-delivery-page__pay'>" +
+      "<button type='button' data-role='pay-now'>Оплатить 0 ₽</button>" +
+      "<button type='button' class='nc-delivery-page__pay-back' data-role='go-to-step-1' style='display:none'>&larr; Изменить данные</button>" +
       "</div>" +
       "</div>" +
       "</div>";
 
     refs.carrierHost = refs.root.querySelector("[data-role='carriers']");
-    refs.citySelect = null;
-    refs.cityDatalist = refs.root.querySelector("[data-role='city-datalist']");
+    refs.citySelect = refs.root.querySelector("[data-role='city-select']");
+    refs.cityDatalist = null;
     refs.status = refs.root.querySelector("[data-role='status']");
     refs.stats = null;
     refs.productsSummary = refs.root.querySelector("[data-role='products-summary']");
@@ -1376,13 +1390,14 @@
     refs.customerFlat = refs.root.querySelector("[data-role='customer-flat']");
     refs.stepPanel1 = refs.root.querySelector("[data-role='step-1']");
     refs.stepPanel2 = refs.root.querySelector("[data-role='step-2']");
-    refs.stepBtnNext = refs.root.querySelector("[data-role='go-to-step-2']");
+    refs.stepBtnNext = null;
     refs.stepBtnBack = refs.root.querySelector("[data-role='go-to-step-1']");
     refs.stepItems = refs.root.querySelectorAll(".nc-delivery-page__step-item");
-    refs.stepBar1 = refs.root.querySelector("[data-role='step-bar-1']");
+    refs.stepBar1 = null;
     refs.step1Error = refs.root.querySelector("[data-role='step1-error']");
     refs.step2Error = refs.root.querySelector("[data-role='step2-error']");
     refs.review = refs.root.querySelector("[data-role='review']");
+    refs.consent = refs.root.querySelector("[data-role='consent']");
 
     buildCarrierButtons();
     ensurePickupField();
@@ -1417,10 +1432,11 @@
         el.classList.toggle("nc-delivery-page__step-item--done", s < step);
       });
     }
-    /* step-bar removed */
+    if (refs.stepBtnBack) refs.stepBtnBack.style.display = step === 2 ? "" : "none";
     if (refs.step1Error) refs.step1Error.textContent = "";
     if (refs.step2Error) refs.step2Error.textContent = "";
     if (step === 2) renderReview();
+    updatePayButtonLabel();
     try {
       refs.root.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {}
@@ -1574,8 +1590,8 @@
     refs.nativeCityRadios.forEach(function (radio) {
       radio.addEventListener("change", function () {
         state.selectedCity = getSelectedCityFromNativeRadios();
-        if (refs.customerAddress && !refs.customerAddress.value && state.selectedCity) {
-          refs.customerAddress.value = state.selectedCity;
+        if (refs.citySelect && state.selectedCity) {
+          refs.citySelect.value = state.selectedCity;
         }
         recalcAndRender();
       });
@@ -1586,30 +1602,11 @@
   }
 
   function bindUiHandlers() {
-    if (refs.customerAddress) {
-      var onCityChange = function () {
-        state.selectedCity = normalizeText(refs.customerAddress.value);
+    if (refs.citySelect) {
+      refs.citySelect.addEventListener("change", function () {
+        state.selectedCity = normalizeText(refs.citySelect.value);
         syncNativeRadioByCity(state.selectedCity);
         recalcAndRender();
-      };
-      refs.customerAddress.addEventListener("change", onCityChange);
-      refs.customerAddress.addEventListener("input", onCityChange);
-    }
-
-    if (refs.stepBtnNext) {
-      refs.stepBtnNext.addEventListener("click", function () {
-        var customer = getCustomerFromCheckoutUi();
-        if (!state.selectedCity) {
-          if (refs.step1Error) refs.step1Error.textContent = "Выберите город доставки.";
-          return;
-        }
-        var err = validateCustomerForPayment(customer);
-        if (err) {
-          if (refs.step1Error) refs.step1Error.textContent = err;
-          return;
-        }
-        if (refs.step1Error) refs.step1Error.textContent = "";
-        goToStep(2);
       });
     }
 
@@ -1621,6 +1618,28 @@
 
     if (refs.payButton) {
       refs.payButton.addEventListener("click", function () {
+        // Step 1: validate and move forward
+        if (state.currentStep === 1) {
+          var customer = getCustomerFromCheckoutUi();
+          if (!state.selectedCity) {
+            if (refs.step1Error) refs.step1Error.textContent = "Выберите город доставки.";
+            return;
+          }
+          var err = validateCustomerForPayment(customer);
+          if (err) {
+            if (refs.step1Error) refs.step1Error.textContent = err;
+            return;
+          }
+          if (refs.consent && !refs.consent.checked) {
+            if (refs.step1Error) refs.step1Error.textContent = "Подтвердите согласие с обработкой персональных данных.";
+            return;
+          }
+          if (refs.step1Error) refs.step1Error.textContent = "";
+          goToStep(2);
+          return;
+        }
+
+        // Step 2: actual payment
         if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
           if (refs.step2Error) refs.step2Error.textContent = "Оплата временно недоступна. Свяжитесь с менеджером.";
           return;
@@ -1900,9 +1919,9 @@
   }
 
   function recalcAndRender() {
-    var cityFromInput = refs.customerAddress ? normalizeText(refs.customerAddress.value) : "";
+    var cityFromSelect = refs.citySelect ? normalizeText(refs.citySelect.value) : "";
     var cityFromNative = getSelectedCityFromNativeRadios();
-    state.selectedCity = cityFromInput || cityFromNative || state.selectedCity || CONFIG.defaultCity || "";
+    state.selectedCity = cityFromSelect || cityFromNative || state.selectedCity || CONFIG.defaultCity || "";
     state.calculation = calculateDelivery(state.products);
     var calc = state.calculation;
 
