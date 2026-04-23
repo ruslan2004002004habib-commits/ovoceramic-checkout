@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-23-bridge-v3";
+  var BUILD_VERSION = "2026-04-28-bridge-v4-dedupe-fix";
   window.NovoCheckoutBridgeVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -512,10 +512,15 @@
 
     if (typeof value !== "object") return;
 
-    var hasProductFields =
-      value.title || value.name || value.product || value.productName || value.quantity || value.amount || value.count;
+    var hasProductTitle =
+      (typeof value.title === "string" && value.title.trim()) ||
+      (typeof value.name === "string" && value.name.trim()) ||
+      (typeof value.product === "string" && value.product.trim()) ||
+      (typeof value.productName === "string" && value.productName.trim());
 
-    if (hasProductFields) {
+    var hasQty = value.quantity || value.amount || value.count;
+
+    if (hasProductTitle && hasQty) {
       var normalized = normalizeProduct(value);
       if (normalized.title) out.push(normalized);
     }
@@ -531,7 +536,13 @@
     var result = [];
     for (var i = 0; i < localStorage.length; i += 1) {
       var key = localStorage.key(i);
-      if (!key || !/cart|tcart|tilda|basket/i.test(key)) continue;
+      if (!key) continue;
+      // Читаем только родные Tilda-ключи корзины. Наши собственные ключи
+      // (nc_*, snapshot) и кеш тарифов исключаем, иначе получаем дубли и
+      // подмешивание строк тарифной таблицы (Анапа/при заказе...) в корзину.
+      if (!/^tcart($|[^a-z])|^tilda-?cart|^basket/i.test(key)) continue;
+      if (/^nc[_-]/i.test(key)) continue;
+      if (/tariff|delivery/i.test(key)) continue;
       try {
         var raw = localStorage.getItem(key);
         if (!raw || (raw[0] !== "{" && raw[0] !== "[")) continue;
