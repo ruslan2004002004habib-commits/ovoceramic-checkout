@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-25-page-v5-stepper";
+  var BUILD_VERSION = "2026-04-25-page-v6-native-city";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -964,25 +964,20 @@
   }
 
   function renderCitySelectOptions() {
-    if (!refs.citySelect) return;
+    if (!refs.cityDatalist) return;
     var cities = buildCityOptions();
-    refs.citySelect.innerHTML = "";
-
-    var placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Выберите город";
-    refs.citySelect.appendChild(placeholder);
-
+    refs.cityDatalist.innerHTML = "";
     cities.forEach(function (city) {
       var option = document.createElement("option");
       option.value = city;
-      option.textContent = city;
-      refs.citySelect.appendChild(option);
+      refs.cityDatalist.appendChild(option);
     });
 
     var preferredCity = state.selectedCity || getSelectedCityFromNativeRadios() || CONFIG.defaultCity || "";
-    refs.citySelect.value = preferredCity && cities.indexOf(preferredCity) !== -1 ? preferredCity : "";
-    if (refs.citySelect.value) state.selectedCity = refs.citySelect.value;
+    if (preferredCity && refs.customerAddress && !refs.customerAddress.value) {
+      refs.customerAddress.value = preferredCity;
+      state.selectedCity = preferredCity;
+    }
   }
 
   function getSelectedNativeDeliveryPrice() {
@@ -1132,16 +1127,16 @@
     var style = document.createElement("style");
     style.id = "nc-delivery-page-style";
     style.textContent =
-      ".nc-delivery-page{--nc-orange:#ff5a1f;--nc-orange-dark:#e64810;--nc-ink:#111;--nc-muted:#8a8a8a;--nc-line:#ececec;--nc-bg:#fff;--nc-bg-soft:#fafafa;margin:0 0 20px;padding:26px 28px;border:1px solid var(--nc-line);border-radius:18px;background:var(--nc-bg);font-family:'Montserrat','Arial',sans-serif;color:var(--nc-ink);box-shadow:0 6px 24px rgba(0,0,0,.04)}" +
-      ".nc-delivery-page__head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:0 0 18px;flex-wrap:wrap}" +
-      ".nc-delivery-page__head-title{font-size:22px;font-weight:800;letter-spacing:.01em;margin:0;text-transform:uppercase}" +
-      ".nc-delivery-page__head-sub{font-size:12px;color:var(--nc-muted);margin-top:4px;line-height:1.4;max-width:520px}" +
-      ".nc-delivery-page__layout{display:grid;grid-template-columns:minmax(290px,.92fr) minmax(420px,1.22fr);gap:30px;align-items:start}" +
-      ".nc-delivery-page__left{display:flex;flex-direction:column;gap:18px}" +
-      ".nc-delivery-page__right{padding-left:24px;border-left:1px solid var(--nc-line);display:flex;flex-direction:column;gap:14px}" +
+      ".nc-delivery-page{--nc-orange:#FF6B35;--nc-orange-dark:#E85A2A;--nc-ink:#1A1A1A;--nc-muted:#8D8D8D;--nc-line:#EDEDED;--nc-bg:#fff;--nc-bg-soft:#F8F8F8;margin:0 0 20px;padding:32px 36px;border:1px solid var(--nc-line);border-radius:16px;background:var(--nc-bg);font-family:inherit;color:var(--nc-ink);box-shadow:0 4px 28px rgba(0,0,0,.05);letter-spacing:0}" +
+      ".nc-delivery-page__head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:0 0 26px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--nc-line)}" +
+      ".nc-delivery-page__head-title{font-size:26px;font-weight:700;letter-spacing:.02em;margin:0;text-transform:uppercase;line-height:1.1}" +
+      ".nc-delivery-page__head-sub{font-size:13px;color:var(--nc-muted);margin-top:8px;line-height:1.5;max-width:560px}" +
+      ".nc-delivery-page__layout{display:grid;grid-template-columns:minmax(290px,.95fr) minmax(380px,1.1fr);gap:40px;align-items:start}" +
+      ".nc-delivery-page__left{display:flex;flex-direction:column;gap:22px}" +
+      ".nc-delivery-page__right{padding-left:32px;border-left:1px solid var(--nc-line);display:flex;flex-direction:column;gap:16px}" +
       ".nc-delivery-page__field{margin:0}" +
       ".nc-delivery-page__field-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}" +
-      ".nc-delivery-page__field-label{font-size:11px;font-weight:800;color:var(--nc-ink);letter-spacing:.12em;text-transform:uppercase;margin:0}" +
+      ".nc-delivery-page__field-label{font-size:11px;font-weight:700;color:var(--nc-ink);letter-spacing:.14em;text-transform:uppercase;margin:0}" +
       ".nc-delivery-page__tip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--nc-ink);color:#fff;font-size:10px;font-weight:700;cursor:help;user-select:none;line-height:1}" +
       ".nc-delivery-page__tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--nc-ink);color:#fff;font-size:11px;font-weight:500;line-height:1.35;text-transform:none;letter-spacing:0;padding:8px 10px;border-radius:8px;white-space:normal;width:240px;opacity:0;pointer-events:none;transition:opacity .15s;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:10}" +
       ".nc-delivery-page__tip::before{content:'';position:absolute;bottom:calc(100% + 2px);left:50%;transform:translateX(-50%) rotate(45deg);width:8px;height:8px;background:var(--nc-ink);opacity:0;pointer-events:none;transition:opacity .15s}" +
@@ -1150,7 +1145,7 @@
       ".nc-delivery-page__hint a{color:var(--nc-orange);text-decoration:none;border-bottom:1px dashed var(--nc-orange)}" +
       ".nc-delivery-page__hint a:hover{color:var(--nc-orange-dark);border-bottom-color:var(--nc-orange-dark)}" +
       ".nc-delivery-page__carriers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}" +
-      ".nc-delivery-page__carrier{border:1px solid var(--nc-line);background:var(--nc-bg);padding:14px 12px;border-radius:12px;font-size:12px;font-weight:700;letter-spacing:.02em;cursor:pointer;transition:.18s;color:var(--nc-ink);text-align:center;line-height:1.3;min-height:56px;display:flex;align-items:center;justify-content:center}" +
+      ".nc-delivery-page__carrier{border:1.5px solid var(--nc-line);background:var(--nc-bg);padding:18px 12px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:.03em;cursor:pointer;transition:all .2s;color:var(--nc-ink);text-align:center;line-height:1.35;min-height:64px;display:flex;align-items:center;justify-content:center}" +
       ".nc-delivery-page__carrier:hover{border-color:var(--nc-ink)}" +
       ".nc-delivery-page__carrier[aria-pressed='true']{border-color:var(--nc-ink);background:var(--nc-ink);color:#fff}" +
       ".nc-delivery-page__field select,.nc-delivery-page__field input{width:100%;height:42px;padding:0 12px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:13px;color:var(--nc-ink);font-family:inherit;transition:.15s;outline:none}" +
@@ -1165,29 +1160,31 @@
       ".nc-delivery-page__summary{display:none}" +
       ".nc-delivery-page__warning{font-size:12px;color:#c7352c;margin:0;line-height:1.5}" +
       ".nc-delivery-page__details{display:none}" +
-      ".nc-delivery-page__customer{display:grid;grid-template-columns:1fr 1fr;gap:10px}" +
+      ".nc-delivery-page__customer{display:grid;grid-template-columns:1fr 1fr;gap:12px}" +
       ".nc-delivery-page__customer .nc-delivery-page__field{margin:0}" +
       ".nc-delivery-page__customer .nc-delivery-page__field--full{grid-column:1/-1}" +
-      ".nc-delivery-page__customer input{width:100%;height:42px;padding:0 12px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:14px;color:var(--nc-ink);font-family:inherit}" +
+      ".nc-delivery-page__customer input{width:100%;height:48px;padding:0 16px;border:1px solid var(--nc-line);border-radius:10px;background:var(--nc-bg);font-size:14px;color:var(--nc-ink);font-family:inherit;transition:border-color .15s;outline:none}" +
+      ".nc-delivery-page__customer input:focus{border-color:var(--nc-ink)}" +
+      ".nc-delivery-page__customer input::placeholder{color:#B0B0B0}" +
       ".nc-delivery-page__pay{margin-top:14px}" +
       ".nc-delivery-page__pay button{width:100%;height:46px;padding:0 20px;border:0;border-radius:10px;background:var(--nc-ink);color:#fff;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:.15s;font-family:inherit}" +
       ".nc-delivery-page__pay button:hover{background:#000}" +
       ".nc-delivery-page__products-title{margin:0 0 6px;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--nc-ink)}" +
       ".nc-delivery-page__products-wrap{display:flex;flex-direction:column}" +
-      ".nc-delivery-page__product-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--nc-line)}" +
+      ".nc-delivery-page__product-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--nc-line)}" +
       ".nc-delivery-page__product-row:last-child{border-bottom:0}" +
-      ".nc-delivery-page__product-meta{display:flex;align-items:center;gap:12px;min-width:0}" +
-      ".nc-delivery-page__product-image{width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--nc-line);flex:0 0 52px;background:var(--nc-bg-soft)}" +
-      ".nc-delivery-page__product-name{font-size:14px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:280px;text-transform:uppercase;letter-spacing:.02em}" +
-      ".nc-delivery-page__product-sub{display:block;font-size:11px;color:var(--nc-muted);margin-top:4px}" +
-      ".nc-delivery-page__product-price{font-size:15px;font-weight:700;white-space:nowrap}" +
-      ".nc-delivery-page__totals{margin-top:16px;padding:16px 0 0;border-top:2px solid var(--nc-ink)}" +
-      ".nc-delivery-page__row{display:flex;justify-content:space-between;gap:12px;font-size:14px;margin:8px 0;color:var(--nc-ink)}" +
-      ".nc-delivery-page__row span{color:var(--nc-muted)}" +
-      ".nc-delivery-page__row strong{font-size:15px;font-weight:700}" +
-      ".nc-delivery-page__row--final{font-size:18px;font-weight:800;margin-top:14px;padding-top:14px;border-top:1px solid var(--nc-line);text-transform:uppercase;letter-spacing:.04em}" +
-      ".nc-delivery-page__row--final span{color:var(--nc-ink)}" +
-      ".nc-delivery-page__row--final strong{font-size:24px;color:var(--nc-orange)}" +
+      ".nc-delivery-page__product-meta{display:flex;align-items:center;gap:14px;min-width:0}" +
+      ".nc-delivery-page__product-image{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--nc-line);flex:0 0 64px;background:var(--nc-bg-soft)}" +
+      ".nc-delivery-page__product-name{font-size:13px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:240px;text-transform:uppercase;letter-spacing:.04em}" +
+      ".nc-delivery-page__product-sub{display:block;font-size:11px;color:var(--nc-muted);margin-top:5px;letter-spacing:.01em}" +
+      ".nc-delivery-page__product-price{font-size:14px;font-weight:600;white-space:nowrap;color:var(--nc-ink)}" +
+      ".nc-delivery-page__totals{margin-top:18px;padding:18px 0 0;border-top:1px solid var(--nc-line)}" +
+      ".nc-delivery-page__row{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin:10px 0;color:var(--nc-ink);align-items:baseline}" +
+      ".nc-delivery-page__row span{color:var(--nc-muted);letter-spacing:.02em}" +
+      ".nc-delivery-page__row strong{font-size:14px;font-weight:600}" +
+      ".nc-delivery-page__row--final{font-size:14px;font-weight:700;margin-top:16px;padding-top:18px;border-top:1px solid var(--nc-ink);text-transform:uppercase;letter-spacing:.08em}" +
+      ".nc-delivery-page__row--final span{color:var(--nc-ink);font-weight:700}" +
+      ".nc-delivery-page__row--final strong{font-size:28px;color:var(--nc-orange);letter-spacing:0}" +
       ".nc-delivery-page__empty{color:var(--nc-muted);font-size:13px;padding:12px 0}" +
       ".nc-delivery-page__pickup-wrap{margin-top:10px}" +
       ".nc-delivery-page__pickup-wrap label{display:block;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--nc-ink);margin-bottom:6px}" +
@@ -1252,12 +1249,7 @@
       "<div class='nc-delivery-page__carriers' data-role='carriers'></div>"
     );
 
-    var cityBlock = buildFieldBlock(
-      "Город доставки",
-      "Стоимость доставки рассчитывается автоматически по тарифной таблице Новокерамик с учетом формата плитки (60×60 или 60×120) и количества упаковок.",
-      "Если вашего города нет в списке — <a href='https://wa.me/79189860121' target='_blank' rel='noopener'>свяжитесь с менеджером</a>, мы рассчитаем доставку индивидуально.",
-      "<select id='nc-delivery-city' data-role='city-select'></select>"
-    );
+    var cityBlock = "";
 
     var productsHintHtml =
       "Если вы видите не те позиции или не хватает товара — <a href='/catalog' >вернитесь в каталог</a> и проверьте корзину.";
@@ -1278,15 +1270,14 @@
     var step1Html =
       "<div class='nc-step-panel nc-step-panel--active' data-role='step-1'>" +
       carrierBlock +
-      cityBlock +
       "<div class='nc-delivery-page__status' data-role='status'></div>" +
-      "<div class='nc-delivery-page__stats' data-role='stats'></div>" +
+      "<datalist id='nc-city-datalist' data-role='city-datalist'></datalist>" +
       "<div class='nc-delivery-page__customer' style='margin-top:14px'>" +
-      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-name' placeholder='Как вас зовут' autocomplete='name'></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-name' placeholder='Ваше имя' autocomplete='name'></div>" +
       "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='tel' data-role='customer-phone' placeholder='+7 (___) ___-__-__' autocomplete='tel' inputmode='tel'></div>" +
-      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-address' placeholder='Город/микрорайон' autocomplete='address-line1'></div>" +
-      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-street' placeholder='Улица' autocomplete='address-line2'></div>" +
-      "<div class='nc-delivery-page__field'><input type='text' data-role='customer-house' placeholder='Дом' autocomplete='address-level2' inputmode='numeric'></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-address' placeholder='Город доставки' autocomplete='address-level2' list='nc-city-datalist'></div>" +
+      "<div class='nc-delivery-page__field nc-delivery-page__field--full'><input type='text' data-role='customer-street' placeholder='Улица' autocomplete='address-line1'></div>" +
+      "<div class='nc-delivery-page__field'><input type='text' data-role='customer-house' placeholder='Дом' autocomplete='address-line2' inputmode='numeric'></div>" +
       "<div class='nc-delivery-page__field'><input type='text' data-role='customer-flat' placeholder='Квартира' autocomplete='off' inputmode='numeric'></div>" +
       "</div>" +
       "<div class='nc-delivery-page__summary' data-role='products-summary'></div>" +
@@ -1343,9 +1334,10 @@
       "</div>";
 
     refs.carrierHost = refs.root.querySelector("[data-role='carriers']");
-    refs.citySelect = refs.root.querySelector("[data-role='city-select']");
+    refs.citySelect = null;
+    refs.cityDatalist = refs.root.querySelector("[data-role='city-datalist']");
     refs.status = refs.root.querySelector("[data-role='status']");
-    refs.stats = refs.root.querySelector("[data-role='stats']");
+    refs.stats = null;
     refs.productsSummary = refs.root.querySelector("[data-role='products-summary']");
     refs.productsList = refs.root.querySelector("[data-role='products-list']");
     refs.photoInput = null;
@@ -1564,8 +1556,8 @@
     refs.nativeCityRadios.forEach(function (radio) {
       radio.addEventListener("change", function () {
         state.selectedCity = getSelectedCityFromNativeRadios();
-        if (refs.citySelect && refs.citySelect.value !== state.selectedCity) {
-          refs.citySelect.value = state.selectedCity;
+        if (refs.customerAddress && !refs.customerAddress.value && state.selectedCity) {
+          refs.customerAddress.value = state.selectedCity;
         }
         recalcAndRender();
       });
@@ -1573,16 +1565,17 @@
 
     state.selectedCity = getSelectedCityFromNativeRadios() || state.selectedCity || CONFIG.defaultCity || "";
     renderCitySelectOptions();
-    if (refs.citySelect && state.selectedCity) refs.citySelect.value = state.selectedCity;
   }
 
   function bindUiHandlers() {
-    if (refs.citySelect) {
-      refs.citySelect.addEventListener("change", function () {
-        state.selectedCity = normalizeText(refs.citySelect.value);
+    if (refs.customerAddress) {
+      var onCityChange = function () {
+        state.selectedCity = normalizeText(refs.customerAddress.value);
         syncNativeRadioByCity(state.selectedCity);
         recalcAndRender();
-      });
+      };
+      refs.customerAddress.addEventListener("change", onCityChange);
+      refs.customerAddress.addEventListener("input", onCityChange);
     }
 
     if (refs.stepBtnNext) {
@@ -1754,6 +1747,8 @@
   }
 
   function renderStats(calc) {
+    return;
+    /* stats block removed for cleaner UI */
     if (!refs.stats) return;
     var carrier = getCarrierById(state.selectedCarrier);
     var carrierTitle = carrier ? carrier.title : "Не выбрано";
@@ -1887,12 +1882,9 @@
   }
 
   function recalcAndRender() {
-    var cityFromSelect = refs.citySelect ? normalizeText(refs.citySelect.value) : "";
+    var cityFromInput = refs.customerAddress ? normalizeText(refs.customerAddress.value) : "";
     var cityFromNative = getSelectedCityFromNativeRadios();
-    state.selectedCity = cityFromSelect || cityFromNative || state.selectedCity || CONFIG.defaultCity || "";
-    if (refs.citySelect && refs.citySelect.value !== state.selectedCity) {
-      refs.citySelect.value = state.selectedCity;
-    }
+    state.selectedCity = cityFromInput || cityFromNative || state.selectedCity || CONFIG.defaultCity || "";
     state.calculation = calculateDelivery(state.products);
     var calc = state.calculation;
 
