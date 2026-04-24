@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-page-v15-visible-errors";
+  var BUILD_VERSION = "2026-04-28-page-v16-live-diag";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -1625,7 +1625,22 @@
 
     if (refs.payButton) {
       refs.payButton.addEventListener("click", function () {
-        console.log("[NovoDeliveryPage] Клик «Оплатить», шаг =", state.currentStep);
+        ncLog("pay.click", {
+          step: state.currentStep,
+          products: state.products ? state.products.length : 0,
+          total: state.calculation ? state.calculation.orderTotal : null,
+          city: state.selectedCity || null,
+        });
+        if (isDebugOn()) {
+          try {
+            window.alert(
+              "Кнопка «Оплатить» нажата. Шаг=" + state.currentStep +
+                "\nТовары: " + (state.products ? state.products.length : 0) +
+                "\nИтог: " + (state.calculation ? state.calculation.orderTotal : "—") +
+                "\nГород: " + (state.selectedCity || "—")
+            );
+          } catch (e) {}
+        }
 
         // Step 1: validate and move forward
         if (state.currentStep === 1) {
@@ -2028,6 +2043,55 @@
     }
   }
 
+  // Внутренний журнал последних 30 событий — попадает в debug-оверлей.
+  var ncEventLog = [];
+  function ncLog(tag, data) {
+    try {
+      var ts = new Date();
+      var hh = String(ts.getHours()).padStart(2, "0");
+      var mm = String(ts.getMinutes()).padStart(2, "0");
+      var ss = String(ts.getSeconds()).padStart(2, "0");
+      var line = hh + ":" + mm + ":" + ss + " " + tag;
+      if (data !== undefined) {
+        try {
+          line += " " + (typeof data === "string" ? data : JSON.stringify(data).slice(0, 300));
+        } catch (e) {
+          line += " [unserializable]";
+        }
+      }
+      ncEventLog.push(line);
+      if (ncEventLog.length > 30) ncEventLog.shift();
+      if (typeof console !== "undefined" && console.log) console.log("[NovoDeliveryPage]", tag, data);
+      if (isDebugOn()) {
+        try { renderDebugOverlay(); } catch (e) {}
+      }
+    } catch (e) {}
+  }
+  window.ncLog = ncLog;
+
+  function renderVersionBadge() {
+    if (document.getElementById("nc-version-badge")) return;
+    var badge = document.createElement("div");
+    badge.id = "nc-version-badge";
+    badge.textContent = BUILD_VERSION;
+    badge.style.cssText =
+      "position:fixed;right:6px;bottom:6px;z-index:99998;background:rgba(0,0,0,.55);color:#fff;" +
+      "font:10px/1 monospace;padding:4px 6px;border-radius:4px;pointer-events:auto;opacity:.6;cursor:pointer";
+    badge.title = "Click to toggle debug";
+    badge.addEventListener("click", function () {
+      try {
+        var cur = window.localStorage.getItem("nc_debug");
+        if (cur === "1") {
+          window.localStorage.removeItem("nc_debug");
+        } else {
+          window.localStorage.setItem("nc_debug", "1");
+        }
+        window.location.reload();
+      } catch (e) {}
+    });
+    document.body.appendChild(badge);
+  }
+
   function renderDebugOverlay() {
     if (!isDebugOn()) return;
     var node = document.getElementById("nc-debug-overlay");
@@ -2079,6 +2143,18 @@
       state.products.forEach(function (p) {
         lines.push(" - " + (p.title || "(no title)") + " x" + p.quantity);
       });
+    }
+    lines.push("");
+    lines.push("-- CONFIG --");
+    lines.push("submitMode: " + CONFIG.submitMode);
+    lines.push("tbankCreatePaymentUrl: " + (CONFIG.tbankCreatePaymentUrl ? CONFIG.tbankCreatePaymentUrl : "(empty!)"));
+    lines.push("tariffsUrl: " + (CONFIG.tariffsUrl || "(default)"));
+    lines.push("");
+    lines.push("-- LIVE LOG --");
+    if (ncEventLog.length) {
+      ncEventLog.slice(-18).forEach(function (l) { lines.push(l); });
+    } else {
+      lines.push("(пусто)");
     }
     lines.push("");
     lines.push("tap here to copy to clipboard");
@@ -2140,6 +2216,7 @@
   }
 
   async function startPaymentFlow(form) {
+    ncLog("startPaymentFlow.enter", { submitMode: CONFIG.submitMode });
     if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
       return { skipped: true, message: "Оплата не настроена (submitMode=" + CONFIG.submitMode + ")" };
     }
@@ -2155,7 +2232,7 @@
       window.__ncPaymentRedirectInProgress = true;
       if (CONFIG.submitMode === "tbank") {
         setStatus("Создаем ссылку на оплату Т-Банк...");
-        console.log("[NovoDeliveryPage] Запрос ссылки Т-Банк", {
+        ncLog("tbank.request", {
           amount: state.calculation && state.calculation.orderTotal,
           url: CONFIG.tbankCreatePaymentUrl,
         });
@@ -2169,7 +2246,7 @@
       }
     } catch (err) {
       window.__ncPaymentRedirectInProgress = false;
-      console.error("[NovoDeliveryPage] Payment init error", err);
+      ncLog("payment.error", { message: err && err.message });
       throw err;
     }
 
@@ -2178,7 +2255,7 @@
       throw new Error("Не удалось построить ссылку на оплату.");
     }
 
-    console.log("[NovoDeliveryPage] Редирект на оплату →", target);
+    ncLog("redirect", target);
     window.setTimeout(function () {
       window.location.href = target;
     }, Math.max(0, Number(CONFIG.redirectDelayMs) || 0));
@@ -2285,37 +2362,56 @@
       }),
     };
 
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timeoutId = controller
+      ? window.setTimeout(function () {
+          try { controller.abort(); } catch (e) {}
+        }, 20000)
+      : null;
+
     var response;
     try {
       response = await fetch(CONFIG.tbankCreatePaymentUrl, {
         method: "POST",
+        mode: "cors",
+        cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),
+        signal: controller ? controller.signal : undefined,
       });
     } catch (netErr) {
-      console.error("[NovoDeliveryPage] Network error к Т-Банк-прокси", netErr);
-      throw new Error("Не удалось связаться с сервером оплаты. Проверьте подключение к интернету.");
+      ncLog("tbank.network_error", { message: netErr && netErr.message });
+      if (netErr && netErr.name === "AbortError") {
+        throw new Error("Сервер оплаты не отвечает (timeout 20s). Проверьте Yandex Cloud функцию.");
+      }
+      throw new Error("Не удалось связаться с сервером оплаты. Проверьте интернет и URL функции.");
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
     }
 
     var rawText = "";
     try { rawText = await response.clone().text(); } catch (e) {}
 
+    ncLog("tbank.response", { status: response.status, bodyPreview: rawText.slice(0, 200) });
+
     if (!response.ok) {
-      console.error("[NovoDeliveryPage] Т-Банк-прокси вернул ошибку", response.status, rawText);
-      throw new Error("Сервер оплаты ответил ошибкой " + response.status + (rawText ? ": " + rawText.slice(0, 160) : ""));
+      throw new Error("Сервер оплаты ответил ошибкой " + response.status + (rawText ? ": " + rawText.slice(0, 200) : ""));
     }
 
     var data;
     try {
       data = JSON.parse(rawText);
     } catch (parseErr) {
-      throw new Error("Сервер оплаты вернул некорректный ответ.");
+      throw new Error("Сервер оплаты вернул некорректный ответ: " + rawText.slice(0, 120));
     }
 
     var url = normalizeText(data.paymentUrl || data.PaymentURL || data.url || "");
     if (!url) {
-      console.error("[NovoDeliveryPage] В ответе Т-Банка нет paymentUrl", data);
-      throw new Error("В ответе нет ссылки на оплату. " + (data.errorMessage || data.Message || ""));
+      ncLog("tbank.no_payment_url", data);
+      throw new Error(
+        "В ответе нет ссылки на оплату. " +
+          (data.error || data.errorMessage || data.message || data.Message || JSON.stringify(data).slice(0, 200))
+      );
     }
     return url;
   }
@@ -2371,6 +2467,13 @@
       bindAutoRefresh();
       bindFormHandlers();
       state.mounted = true;
+      try { renderVersionBadge(); } catch (e) {}
+      ncLog("init.done", {
+        version: BUILD_VERSION,
+        submitMode: CONFIG.submitMode,
+        hasTbankUrl: !!CONFIG.tbankCreatePaymentUrl,
+        products: state.products ? state.products.length : 0,
+      });
 
       if (tariffsLoadError) {
         setStatus("Тарифы временно недоступны. Применен резервный расчет доставки.");
