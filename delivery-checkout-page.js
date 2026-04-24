@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-page-v13-payment-errors";
+  var BUILD_VERSION = "2026-04-28-page-v14-config-name";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -1652,14 +1652,14 @@
         if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
           if (refs.step2Error) {
             refs.step2Error.textContent =
-              "Оплата не настроена. Проверьте window.NovoDeliveryCheckoutConfig.submitMode и tbankCreatePaymentUrl в HEAD страницы.";
+              "Оплата не настроена. Проверьте window.NovoDeliveryPageConfig.submitMode = \"tbank\" в HEAD страницы.";
           }
           console.warn("[NovoDeliveryPage] submitMode =", CONFIG.submitMode, "— оплата не запустится");
           return;
         }
         if (CONFIG.submitMode === "tbank" && !CONFIG.tbankCreatePaymentUrl) {
           if (refs.step2Error) {
-            refs.step2Error.textContent = "Не задан URL функции Т-Банк. Проверьте tbankCreatePaymentUrl в HEAD страницы.";
+            refs.step2Error.textContent = "Не задан URL функции Т-Банк. Проверьте tbankCreatePaymentUrl в window.NovoDeliveryPageConfig.";
           }
           console.warn("[NovoDeliveryPage] tbankCreatePaymentUrl пустой");
           return;
@@ -2219,7 +2219,7 @@
 
   async function requestTbankPaymentUrl(calc, form) {
     if (!CONFIG.tbankCreatePaymentUrl) {
-      throw new Error("Не задан tbankCreatePaymentUrl в NovoDeliveryCheckoutConfig.");
+      throw new Error("Не задан tbankCreatePaymentUrl в NovoDeliveryPageConfig.");
     }
     var totalRub = Number(calc && calc.orderTotal);
     if (!Number.isFinite(totalRub) || totalRub <= 0) {
@@ -2350,7 +2350,7 @@
       }
 
       try {
-        window.NovoDeliveryCheckoutLoadedAt = Date.now();
+        window.NovoDeliveryPageLoadedAt = Date.now();
         document.dispatchEvent(
           new CustomEvent("nc_checkout_ready", {
             detail: { mounted: true, tariffsLoaded: !tariffsLoadError },
