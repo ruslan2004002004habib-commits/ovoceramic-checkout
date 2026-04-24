@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-bridge-v4-dedupe-fix";
+  var BUILD_VERSION = "2026-04-28-bridge-v6-ios-pagehide";
   window.NovoCheckoutBridgeVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -30,6 +30,12 @@
         "#tcart .t706__cartpage-open-form",
         "#tcart .t706__sidebar-continue",
         "#tcart .t706__sidebar-bottom .t-btn",
+        "#tcart .t706__sidebar-continue-btn",
+        "#tcart .t706__cartpage-open",
+        "#tcart .t-btn.t-submit",
+        "#tcart .t-btn.t-btn_md",
+        ".t706__cartwin-bottom .t-btn",
+        ".t706__cartpage-bottom .t-btn",
       ],
       checkoutCtaTextIncludes: [
         "уточнить данные и оплатить",
@@ -838,6 +844,17 @@
     return false;
   }
 
+  function deferRedirect(reason) {
+    // На мобильной Tilda корзина рендерится асинхронно. Даём 80 мс, чтобы
+    // window.tcart успел обновиться, затем делаем снапшот и редирект.
+    window.setTimeout(function () {
+      storeSnapshot(reason);
+      window.setTimeout(function () {
+        redirectToCheckout(reason);
+      }, 20);
+    }, 80);
+  }
+
   function bindClickRouting() {
     document.addEventListener(
       "click",
@@ -853,24 +870,30 @@
           return;
         }
 
-        if (CONFIG.cartIconRedirect && matchTarget(target, CONFIG.cartIconSelectors)) {
-          event.preventDefault();
-          event.stopPropagation();
-          redirectToCheckout("cart_icon_click");
+        // На клик по иконке корзины делаем превентивный снапшот, даже если не редиректим.
+        if (matchTarget(target, CONFIG.cartIconSelectors)) {
+          window.setTimeout(function () {
+            storeSnapshot("cart_icon_open");
+          }, 150);
+          if (CONFIG.cartIconRedirect) {
+            event.preventDefault();
+            event.stopPropagation();
+            deferRedirect("cart_icon_click");
+          }
           return;
         }
 
         if (CONFIG.checkoutButtonRedirect && matchTarget(target, CONFIG.checkoutButtonSelectors)) {
           event.preventDefault();
           event.stopPropagation();
-          redirectToCheckout("checkout_button_click");
+          deferRedirect("checkout_button_click");
           return;
         }
 
         if (CONFIG.checkoutButtonRedirect && matchesCheckoutText(target)) {
           event.preventDefault();
           event.stopPropagation();
-          redirectToCheckout("checkout_text_cta_click");
+          deferRedirect("checkout_text_cta_click");
         }
       },
       true
@@ -878,12 +901,21 @@
   }
 
   function bindUnloadSnapshot() {
-    window.addEventListener("beforeunload", function () {
-      try {
-        storeSnapshot("beforeunload");
-      } catch (err) {
-        // ignore storage errors on unload
-      }
+    // iOS Safari не запускает beforeunload надёжно — для него нужен pagehide.
+    // Регистрируем оба, чтобы гарантированно зафиксировать снапшот перед уходом.
+    var handler = function (reason) {
+      return function () {
+        try {
+          storeSnapshot(reason);
+        } catch (err) {
+          // ignore storage errors on unload
+        }
+      };
+    };
+    window.addEventListener("pagehide", handler("pagehide"));
+    window.addEventListener("beforeunload", handler("beforeunload"));
+    window.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") handler("visibilitychange_hidden")();
     });
   }
 

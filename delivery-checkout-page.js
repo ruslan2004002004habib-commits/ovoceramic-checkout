@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-page-v10-layout-fix";
+  var BUILD_VERSION = "2026-04-28-page-v13-payment-errors";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -1237,7 +1237,8 @@
       ".nc-delivery-page__btn-next{background:var(--nc-orange);border:0;color:#fff;height:46px;padding:0 28px;border-radius:10px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:.15s;flex:1 0 auto;max-width:340px;box-shadow:0 4px 14px rgba(255,90,31,.25)}" +
       ".nc-delivery-page__btn-next:hover{background:var(--nc-orange-dark);box-shadow:0 6px 18px rgba(255,90,31,.35)}" +
       ".nc-delivery-page__btn-next:disabled{background:#cccccc;box-shadow:none;cursor:not-allowed}" +
-      ".nc-delivery-page__error{color:#c7352c;font-size:12px;margin:8px 0 0;line-height:1.45;min-height:0;font-weight:600}" +
+      ".nc-delivery-page__error{color:#c7352c;font-size:13px;margin:10px 0 0;line-height:1.45;min-height:0;font-weight:600;padding:0}" +
+      ".nc-delivery-page__error:not(:empty){background:#FDECEA;border:1px solid #F5C2BE;border-radius:8px;padding:10px 12px}" +
       ".nc-delivery-page__review{background:var(--nc-bg-soft);border:1px solid var(--nc-line);border-radius:12px;padding:16px;margin:0 0 14px}" +
       ".nc-delivery-page__review-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--nc-line)}" +
       ".nc-delivery-page__review-row:last-child{border-bottom:0}" +
@@ -1639,19 +1640,55 @@
           return;
         }
 
-        // Step 2: actual payment
-        if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
-          if (refs.step2Error) refs.step2Error.textContent = "Оплата временно недоступна. Свяжитесь с менеджером.";
+        // Step 2: actual payment — проверки перед отправкой
+        if (!Array.isArray(state.products) || !state.products.length) {
+          if (refs.step2Error) refs.step2Error.textContent = "Корзина пуста. Вернитесь в каталог и добавьте товар.";
           return;
         }
+        if (!state.calculation || !Number.isFinite(state.calculation.orderTotal) || state.calculation.orderTotal <= 0) {
+          if (refs.step2Error) refs.step2Error.textContent = "Сумма заказа некорректна. Выберите город и попробуйте ещё раз.";
+          return;
+        }
+        if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
+          if (refs.step2Error) {
+            refs.step2Error.textContent =
+              "Оплата не настроена. Проверьте window.NovoDeliveryCheckoutConfig.submitMode и tbankCreatePaymentUrl в HEAD страницы.";
+          }
+          console.warn("[NovoDeliveryPage] submitMode =", CONFIG.submitMode, "— оплата не запустится");
+          return;
+        }
+        if (CONFIG.submitMode === "tbank" && !CONFIG.tbankCreatePaymentUrl) {
+          if (refs.step2Error) {
+            refs.step2Error.textContent = "Не задан URL функции Т-Банк. Проверьте tbankCreatePaymentUrl в HEAD страницы.";
+          }
+          console.warn("[NovoDeliveryPage] tbankCreatePaymentUrl пустой");
+          return;
+        }
+
         if (refs.step2Error) refs.step2Error.textContent = "";
         refs.payButton.disabled = true;
         refs.payButton.textContent = "Создаём ссылку на оплату...";
-        startPaymentFlow(null).catch(function (err) {
+
+        var resetPayBtn = function () {
           refs.payButton.disabled = false;
-          if (refs.step2Error) refs.step2Error.textContent = (err && err.message) || "Ошибка оплаты. Попробуйте ещё раз.";
           updatePayButtonLabel();
-        });
+        };
+
+        startPaymentFlow(null)
+          .then(function (result) {
+            if (result && result.skipped) {
+              resetPayBtn();
+              if (refs.step2Error && result.message) refs.step2Error.textContent = result.message;
+            }
+            // При успехе редирект произойдёт в startPaymentFlow
+          })
+          .catch(function (err) {
+            console.error("[NovoDeliveryPage] Ошибка оплаты", err);
+            resetPayBtn();
+            if (refs.step2Error) {
+              refs.step2Error.textContent = (err && err.message) || "Ошибка оплаты. Попробуйте ещё раз.";
+            }
+          });
       });
     }
   }
@@ -1818,9 +1855,21 @@
   function renderProductsList() {
     if (!refs.productsList) return;
     if (!Array.isArray(state.products) || !state.products.length) {
-      refs.productsList.innerHTML = "<div class='nc-delivery-page__empty'>Корзина пока пустая или не удалось получить товары из каталога.</div>";
+      refs.productsList.innerHTML =
+        "<div class='nc-delivery-page__empty' style='padding:20px 0;text-align:center'>" +
+        "<div style='font-size:14px;font-weight:700;color:var(--nc-ink);margin-bottom:8px'>Корзина пуста</div>" +
+        "<div style='font-size:12px;color:var(--nc-muted);margin-bottom:14px;line-height:1.5'>" +
+        "Сначала выберите товары в каталоге, добавьте их в корзину и нажмите «Оформить»." +
+        "</div>" +
+        "<a href='/katalog' style='display:inline-block;background:var(--nc-orange);color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:.04em'>Перейти в каталог</a>" +
+        "</div>";
+      if (refs.payButton) {
+        refs.payButton.disabled = true;
+        refs.payButton.textContent = "Корзина пуста";
+      }
       return;
     }
+    if (refs.payButton) refs.payButton.disabled = false;
 
     var html = "<div class='nc-delivery-page__products-title'>Товары из корзины</div>" + "<div class='nc-delivery-page__products-wrap'>";
 
@@ -1941,6 +1990,83 @@
     bindNativePhotoField();
     state.products = collectCartProducts();
     recalcAndRender();
+    renderDebugOverlay();
+  }
+
+  function isDebugOn() {
+    try {
+      return /[?&]nc_debug=1\b/.test(window.location.search) || window.localStorage.getItem("nc_debug") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function renderDebugOverlay() {
+    if (!isDebugOn()) return;
+    var node = document.getElementById("nc-debug-overlay");
+    if (!node) {
+      node = document.createElement("div");
+      node.id = "nc-debug-overlay";
+      node.style.cssText =
+        "position:fixed;left:10px;right:10px;bottom:10px;z-index:99999;background:#111;color:#0f0;" +
+        "font:11px/1.4 monospace;padding:10px 12px;border-radius:8px;max-height:45vh;overflow:auto;" +
+        "box-shadow:0 8px 24px rgba(0,0,0,.45);white-space:pre-wrap;word-break:break-word";
+      document.body.appendChild(node);
+    }
+    var tcart = window.tcart || null;
+    var tcartLen =
+      tcart && tcart.products && Array.isArray(tcart.products) ? tcart.products.length : "(no)";
+    var snapshotRaw = "";
+    var snapshotCount = "(no)";
+    try {
+      snapshotRaw = window.localStorage.getItem("nc_checkout_cart_snapshot") || "";
+      if (snapshotRaw) {
+        var parsed = JSON.parse(snapshotRaw);
+        snapshotCount = (parsed && parsed.products && parsed.products.length) || 0;
+      }
+    } catch (e) {}
+    var tcartLs = "";
+    var tcartLsCount = "(no)";
+    try {
+      tcartLs = window.localStorage.getItem("tcart") || "";
+      if (tcartLs) {
+        var parsedLs = JSON.parse(tcartLs);
+        tcartLsCount = (parsedLs && parsedLs.products && parsedLs.products.length) || 0;
+      }
+    } catch (e) {}
+    var lines = [
+      "== NovoDelivery DEBUG ==",
+      "page version: " + BUILD_VERSION,
+      "bridge loaded: " + (window.NovoCheckoutBridgeVersion || "NO (!)"),
+      "UA: " + (navigator.userAgent || "").slice(0, 80),
+      "url: " + window.location.href,
+      "",
+      "window.tcart products: " + tcartLen,
+      "localStorage[tcart]: " + tcartLsCount,
+      "nc_checkout_cart_snapshot: " + snapshotCount + (snapshotRaw ? " bytes=" + snapshotRaw.length : ""),
+      "",
+      "state.products: " + (state.products ? state.products.length : 0),
+    ];
+    if (state.products && state.products.length) {
+      lines.push("products:");
+      state.products.forEach(function (p) {
+        lines.push(" - " + (p.title || "(no title)") + " x" + p.quantity);
+      });
+    }
+    lines.push("");
+    lines.push("tap here to copy to clipboard");
+    node.textContent = lines.join("\n");
+    node.onclick = function () {
+      try {
+        var tmp = document.createElement("textarea");
+        tmp.value = node.textContent;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        document.body.removeChild(tmp);
+        node.style.borderLeft = "4px solid #ff0";
+      } catch (e) {}
+    };
   }
 
   function bindAutoRefresh() {
@@ -1987,40 +2113,49 @@
   }
 
   async function startPaymentFlow(form) {
-    if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") return;
-    if (!state.calculation) return;
-    if (window.__ncPaymentRedirectInProgress) return;
+    if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
+      return { skipped: true, message: "Оплата не настроена (submitMode=" + CONFIG.submitMode + ")" };
+    }
+    if (!state.calculation) {
+      return { skipped: true, message: "Сумма заказа ещё не рассчитана. Попробуйте ещё раз." };
+    }
+    if (window.__ncPaymentRedirectInProgress) {
+      return { skipped: true, message: "Ссылка на оплату уже создаётся, подождите…" };
+    }
 
     var target = "";
     try {
       window.__ncPaymentRedirectInProgress = true;
       if (CONFIG.submitMode === "tbank") {
         setStatus("Создаем ссылку на оплату Т-Банк...");
+        console.log("[NovoDeliveryPage] Запрос ссылки Т-Банк", {
+          amount: state.calculation && state.calculation.orderTotal,
+          url: CONFIG.tbankCreatePaymentUrl,
+        });
         target = await requestTbankPaymentUrl(state.calculation, form);
         if (!target) {
-          setStatus("Не удалось создать ссылку на оплату. Проверьте настройки Т-Банк.");
           window.__ncPaymentRedirectInProgress = false;
-          return;
+          throw new Error("Т-Банк не вернул ссылку на оплату. Проверьте Yandex Cloud Function и CORS.");
         }
       } else {
         target = buildRedirectUrl(state.calculation);
       }
     } catch (err) {
-      console.error("[NovoDeliveryPage] Payment init error", err);
-      var message = err && err.message ? err.message : "";
-      setStatus(message || "Ошибка инициализации оплаты. Попробуйте еще раз или свяжитесь с менеджером.");
       window.__ncPaymentRedirectInProgress = false;
-      return;
+      console.error("[NovoDeliveryPage] Payment init error", err);
+      throw err;
     }
 
     if (!target) {
       window.__ncPaymentRedirectInProgress = false;
-      return;
+      throw new Error("Не удалось построить ссылку на оплату.");
     }
 
+    console.log("[NovoDeliveryPage] Редирект на оплату →", target);
     window.setTimeout(function () {
       window.location.href = target;
     }, Math.max(0, Number(CONFIG.redirectDelayMs) || 0));
+    return { skipped: false };
   }
 
   function normalizePhone(raw) {
@@ -2083,9 +2218,17 @@
   }
 
   async function requestTbankPaymentUrl(calc, form) {
-    if (!CONFIG.tbankCreatePaymentUrl) return "";
+    if (!CONFIG.tbankCreatePaymentUrl) {
+      throw new Error("Не задан tbankCreatePaymentUrl в NovoDeliveryCheckoutConfig.");
+    }
     var totalRub = Number(calc && calc.orderTotal);
-    if (!Number.isFinite(totalRub) || totalRub <= 0) return "";
+    if (!Number.isFinite(totalRub) || totalRub <= 0) {
+      throw new Error("Сумма заказа пустая или некорректная: " + totalRub);
+    }
+    // Т-Банк требует минимум 1 копейку (>=1 руб. для удобства).
+    if (totalRub < 1) {
+      throw new Error("Минимальная сумма для оплаты — 1 ₽.");
+    }
 
     var customer = getCustomerFromForm(form);
     var customerError = validateCustomerForPayment(customer);
@@ -2115,14 +2258,39 @@
       }),
     };
 
-    var response = await fetch(CONFIG.tbankCreatePaymentUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error("tbank_init_failed_" + response.status);
-    var data = await response.json();
-    return normalizeText(data.paymentUrl || data.PaymentURL || data.url || "");
+    var response;
+    try {
+      response = await fetch(CONFIG.tbankCreatePaymentUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (netErr) {
+      console.error("[NovoDeliveryPage] Network error к Т-Банк-прокси", netErr);
+      throw new Error("Не удалось связаться с сервером оплаты. Проверьте подключение к интернету.");
+    }
+
+    var rawText = "";
+    try { rawText = await response.clone().text(); } catch (e) {}
+
+    if (!response.ok) {
+      console.error("[NovoDeliveryPage] Т-Банк-прокси вернул ошибку", response.status, rawText);
+      throw new Error("Сервер оплаты ответил ошибкой " + response.status + (rawText ? ": " + rawText.slice(0, 160) : ""));
+    }
+
+    var data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseErr) {
+      throw new Error("Сервер оплаты вернул некорректный ответ.");
+    }
+
+    var url = normalizeText(data.paymentUrl || data.PaymentURL || data.url || "");
+    if (!url) {
+      console.error("[NovoDeliveryPage] В ответе Т-Банка нет paymentUrl", data);
+      throw new Error("В ответе нет ссылки на оплату. " + (data.errorMessage || data.Message || ""));
+    }
+    return url;
   }
 
   function bindFormHandlers() {
