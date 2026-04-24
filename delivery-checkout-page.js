@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-page-v14-config-name";
+  var BUILD_VERSION = "2026-04-28-page-v15-visible-errors";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -1239,6 +1239,9 @@
       ".nc-delivery-page__btn-next:disabled{background:#cccccc;box-shadow:none;cursor:not-allowed}" +
       ".nc-delivery-page__error{color:#c7352c;font-size:13px;margin:10px 0 0;line-height:1.45;min-height:0;font-weight:600;padding:0}" +
       ".nc-delivery-page__error:not(:empty){background:#FDECEA;border:1px solid #F5C2BE;border-radius:8px;padding:10px 12px}" +
+      ".nc-delivery-page__error--inline{margin-top:8px}" +
+      "@keyframes ncShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}" +
+      ".nc-delivery-page__pay button.nc-shake{animation:ncShake .45s}" +
       ".nc-delivery-page__review{background:var(--nc-bg-soft);border:1px solid var(--nc-line);border-radius:12px;padding:16px;margin:0 0 14px}" +
       ".nc-delivery-page__review-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--nc-line)}" +
       ".nc-delivery-page__review-row:last-child{border-bottom:0}" +
@@ -1361,6 +1364,7 @@
       "</div>" +
       "<div class='nc-delivery-page__pay'>" +
       "<button type='button' data-role='pay-now'>Оплатить 0 ₽</button>" +
+      "<div class='nc-delivery-page__error nc-delivery-page__error--inline' data-role='pay-error'></div>" +
       "<button type='button' class='nc-delivery-page__pay-back' data-role='go-to-step-1' style='display:none'>&larr; Изменить данные</button>" +
       "</div>" +
       "</div>" +
@@ -1397,6 +1401,7 @@
     refs.stepBar1 = null;
     refs.step1Error = refs.root.querySelector("[data-role='step1-error']");
     refs.step2Error = refs.root.querySelector("[data-role='step2-error']");
+    refs.payError = refs.root.querySelector("[data-role='pay-error']");
     refs.review = refs.root.querySelector("[data-role='review']");
     refs.consent = refs.root.querySelector("[data-role='consent']");
 
@@ -1436,6 +1441,7 @@
     if (refs.stepBtnBack) refs.stepBtnBack.style.display = step === 2 ? "" : "none";
     if (refs.step1Error) refs.step1Error.textContent = "";
     if (refs.step2Error) refs.step2Error.textContent = "";
+    if (refs.payError) refs.payError.textContent = "";
     if (step === 2) renderReview();
     updatePayButtonLabel();
     try {
@@ -1619,53 +1625,53 @@
 
     if (refs.payButton) {
       refs.payButton.addEventListener("click", function () {
+        console.log("[NovoDeliveryPage] Клик «Оплатить», шаг =", state.currentStep);
+
         // Step 1: validate and move forward
         if (state.currentStep === 1) {
           var customer = getCustomerFromCheckoutUi();
           if (!state.selectedCity) {
-            if (refs.step1Error) refs.step1Error.textContent = "Выберите город доставки.";
+            showPayError("Выберите город доставки.", "step1");
             return;
           }
           var err = validateCustomerForPayment(customer);
           if (err) {
-            if (refs.step1Error) refs.step1Error.textContent = err;
+            showPayError(err, "step1");
             return;
           }
           if (refs.consent && !refs.consent.checked) {
-            if (refs.step1Error) refs.step1Error.textContent = "Подтвердите согласие с обработкой персональных данных.";
+            showPayError("Подтвердите согласие с обработкой персональных данных.", "step1");
             return;
           }
-          if (refs.step1Error) refs.step1Error.textContent = "";
+          clearPayError();
           goToStep(2);
           return;
         }
 
         // Step 2: actual payment — проверки перед отправкой
         if (!Array.isArray(state.products) || !state.products.length) {
-          if (refs.step2Error) refs.step2Error.textContent = "Корзина пуста. Вернитесь в каталог и добавьте товар.";
+          showPayError("Корзина пуста. Вернитесь в каталог и добавьте товар.", "step2");
           return;
         }
         if (!state.calculation || !Number.isFinite(state.calculation.orderTotal) || state.calculation.orderTotal <= 0) {
-          if (refs.step2Error) refs.step2Error.textContent = "Сумма заказа некорректна. Выберите город и попробуйте ещё раз.";
+          showPayError("Сумма заказа некорректна. Выберите город и попробуйте ещё раз.", "step2");
           return;
         }
         if (CONFIG.submitMode !== "redirect" && CONFIG.submitMode !== "tbank") {
-          if (refs.step2Error) {
-            refs.step2Error.textContent =
-              "Оплата не настроена. Проверьте window.NovoDeliveryPageConfig.submitMode = \"tbank\" в HEAD страницы.";
-          }
+          showPayError(
+            "Оплата не настроена. Проверьте window.NovoDeliveryPageConfig.submitMode = \"tbank\" в HEAD страницы.",
+            "step2"
+          );
           console.warn("[NovoDeliveryPage] submitMode =", CONFIG.submitMode, "— оплата не запустится");
           return;
         }
         if (CONFIG.submitMode === "tbank" && !CONFIG.tbankCreatePaymentUrl) {
-          if (refs.step2Error) {
-            refs.step2Error.textContent = "Не задан URL функции Т-Банк. Проверьте tbankCreatePaymentUrl в window.NovoDeliveryPageConfig.";
-          }
+          showPayError("Не задан URL функции Т-Банк. Проверьте tbankCreatePaymentUrl в NovoDeliveryPageConfig.", "step2");
           console.warn("[NovoDeliveryPage] tbankCreatePaymentUrl пустой");
           return;
         }
 
-        if (refs.step2Error) refs.step2Error.textContent = "";
+        clearPayError();
         refs.payButton.disabled = true;
         refs.payButton.textContent = "Создаём ссылку на оплату...";
 
@@ -1678,19 +1684,40 @@
           .then(function (result) {
             if (result && result.skipped) {
               resetPayBtn();
-              if (refs.step2Error && result.message) refs.step2Error.textContent = result.message;
+              if (result.message) showPayError(result.message, "step2");
             }
-            // При успехе редирект произойдёт в startPaymentFlow
           })
           .catch(function (err) {
             console.error("[NovoDeliveryPage] Ошибка оплаты", err);
             resetPayBtn();
-            if (refs.step2Error) {
-              refs.step2Error.textContent = (err && err.message) || "Ошибка оплаты. Попробуйте ещё раз.";
-            }
+            showPayError((err && err.message) || "Ошибка оплаты. Попробуйте ещё раз.", "step2");
           });
       });
     }
+  }
+
+  function showPayError(message, stepKey) {
+    var target = stepKey === "step2" ? refs.step2Error : refs.step1Error;
+    if (target) target.textContent = message;
+    if (refs.payError) refs.payError.textContent = message;
+    if (refs.payButton) {
+      refs.payButton.classList.remove("nc-shake");
+      // reflow чтобы анимация сбросилась
+      void refs.payButton.offsetWidth;
+      refs.payButton.classList.add("nc-shake");
+    }
+    try {
+      if (refs.payError && refs.payError.scrollIntoView) {
+        refs.payError.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    } catch (e) {}
+    console.warn("[NovoDeliveryPage] Ошибка на шаге " + stepKey + ":", message);
+  }
+
+  function clearPayError() {
+    if (refs.step1Error) refs.step1Error.textContent = "";
+    if (refs.step2Error) refs.step2Error.textContent = "";
+    if (refs.payError) refs.payError.textContent = "";
   }
 
   function updatePayButtonLabel() {
