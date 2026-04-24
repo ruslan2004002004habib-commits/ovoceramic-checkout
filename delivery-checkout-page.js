@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  var BUILD_VERSION = "2026-04-28-page-v16-live-diag";
+  var BUILD_VERSION = "2026-04-28-page-v17-pay-no-delivery";
   window.NovoDeliveryPageVersion = BUILD_VERSION;
 
   var CONFIG = Object.assign(
@@ -1240,6 +1240,8 @@
       ".nc-delivery-page__error{color:#c7352c;font-size:13px;margin:10px 0 0;line-height:1.45;min-height:0;font-weight:600;padding:0}" +
       ".nc-delivery-page__error:not(:empty){background:#FDECEA;border:1px solid #F5C2BE;border-radius:8px;padding:10px 12px}" +
       ".nc-delivery-page__error--inline{margin-top:8px}" +
+      ".nc-delivery-page__skip-delivery{display:inline-block;margin-top:10px;color:#FF6B35;font-size:14px;font-weight:600;text-decoration:none;border-bottom:1px dashed #FF6B35;cursor:pointer;transition:color .15s,border-color .15s}" +
+      ".nc-delivery-page__skip-delivery:hover{color:#E85520;border-bottom-color:#E85520}" +
       "@keyframes ncShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}" +
       ".nc-delivery-page__pay button.nc-shake{animation:ncShake .45s}" +
       ".nc-delivery-page__review{background:var(--nc-bg-soft);border:1px solid var(--nc-line);border-radius:12px;padding:16px;margin:0 0 14px}" +
@@ -1309,6 +1311,7 @@
       "</div>" +
       "<select data-role='city-select' autocomplete='address-level2'><option value='' disabled selected>Выберите город</option></select>" +
       "<div class='nc-delivery-page__hint'>Если вашего города нет в списке — <a href='https://wa.me/79189860121' target='_blank' rel='noopener'>обратитесь к менеджеру</a>, мы вам поможем.</div>" +
+      "<a href='#' class='nc-delivery-page__skip-delivery' data-role='pay-without-delivery'>Оплатить без доставки →</a>" +
       "</div>" +
       "<div class='nc-delivery-page__status' data-role='status'></div>" +
       "<div class='nc-delivery-page__customer' style='margin-top:6px'>" +
@@ -1402,6 +1405,7 @@
     refs.step1Error = refs.root.querySelector("[data-role='step1-error']");
     refs.step2Error = refs.root.querySelector("[data-role='step2-error']");
     refs.payError = refs.root.querySelector("[data-role='pay-error']");
+    refs.payNoDelivery = refs.root.querySelector("[data-role='pay-without-delivery']");
     refs.review = refs.root.querySelector("[data-role='review']");
     refs.consent = refs.root.querySelector("[data-role='consent']");
 
@@ -1709,6 +1713,85 @@
           });
       });
     }
+
+    if (refs.payNoDelivery) {
+      refs.payNoDelivery.addEventListener("click", function (e) {
+        e.preventDefault();
+        triggerPaymentNoDelivery();
+      });
+    }
+  }
+
+  function triggerPaymentNoDelivery() {
+    ncLog("pay.no_delivery.click", { products: state.products ? state.products.length : 0 });
+
+    if (!Array.isArray(state.products) || !state.products.length) {
+      showPayError("Корзина пуста. Вернитесь в каталог и добавьте товар.", "step1");
+      return;
+    }
+
+    var customer = getCustomerFromCheckoutUi();
+    var err = validateCustomerForPayment(customer);
+    if (err) {
+      showPayError(err, "step1");
+      return;
+    }
+    if (refs.consent && !refs.consent.checked) {
+      showPayError("Подтвердите согласие с обработкой персональных данных.", "step1");
+      return;
+    }
+
+    if (CONFIG.submitMode !== "tbank" || !CONFIG.tbankCreatePaymentUrl) {
+      showPayError("Оплата не настроена. Проверьте tbankCreatePaymentUrl в NovoDeliveryPageConfig.", "step1");
+      return;
+    }
+
+    // Формируем calculation без доставки
+    var subtotal = 0;
+    (state.products || []).forEach(function (p) {
+      var qty = Number.isFinite(p.quantity) ? p.quantity : 1;
+      var unit = Number.isFinite(p.unitPrice) ? p.unitPrice : 0;
+      var line = Number.isFinite(p.lineTotal) ? p.lineTotal : unit * qty;
+      subtotal += line;
+    });
+    if (!(subtotal > 0)) {
+      showPayError("Сумма товаров равна 0. Проверьте корзину.", "step1");
+      return;
+    }
+
+    state.calculation = {
+      orderTotal: subtotal,
+      cartSubtotal: subtotal,
+      deliveryCost: 0,
+      city: "Самовывоз / без доставки",
+      carrier: state.selectedCarrier || "",
+    };
+
+    clearPayError();
+    if (refs.payNoDelivery) {
+      refs.payNoDelivery.textContent = "Создаём ссылку на оплату…";
+      refs.payNoDelivery.style.pointerEvents = "none";
+      refs.payNoDelivery.style.opacity = "0.6";
+    }
+
+    var resetLink = function () {
+      if (!refs.payNoDelivery) return;
+      refs.payNoDelivery.textContent = "Оплатить без доставки →";
+      refs.payNoDelivery.style.pointerEvents = "";
+      refs.payNoDelivery.style.opacity = "";
+    };
+
+    startPaymentFlow(null)
+      .then(function (result) {
+        if (result && result.skipped) {
+          resetLink();
+          if (result.message) showPayError(result.message, "step1");
+        }
+      })
+      .catch(function (e) {
+        resetLink();
+        showPayError((e && e.message) || "Ошибка оплаты. Попробуйте ещё раз.", "step1");
+      });
   }
 
   function showPayError(message, stepKey) {
